@@ -1,0 +1,47 @@
+# Get the default VPC
+data "aws_vpc" "default" {
+  default = true
+}
+
+# Reference the existing security group by name
+data "aws_security_group" "dickson_sec_group" {
+  name   = "dickson_sec_group"
+  vpc_id = data.aws_vpc.default.id
+}
+
+# Launch EC2 instance
+resource "aws_instance" "my_ec2" {
+  ami           = "ami-0b6d9d3d33ba97d99"
+  instance_type = "t3.micro"
+  key_name      = "frontend" # Use the key-pair name without .pem
+
+  # Use the existing security group
+  vpc_security_group_ids = [data.aws_security_group.dickson_sec_group.id]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              sudo apt update -y
+              sudo apt install -y nginx git
+
+              # Remove default nginx page
+              sudo rm -f /var/www/html/index.nginx-debian.html
+
+              # Clone your GitHub repo (replace with your repo URL)
+              git clone https://github.com/maduekedickson/complete-pipeline.git /tmp/website
+
+              # Copy website files to nginx root
+              sudo cp -r /tmp/website/website/* /var/www/html/
+
+              # Set permissions
+              sudo chown -R www-data:www-data /var/www/html
+              sudo chmod -R 755 /var/www/html
+
+              # Enable and start nginx
+              sudo systemctl enable nginx
+              sudo systemctl start nginx
+              EOF
+
+  tags = {
+    Name = "My RED Web Server"
+  }
+}
